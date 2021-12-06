@@ -34,7 +34,19 @@ parser.add_argument('-p','--password', help='Your password',required=False)
 parser.add_argument('-c','--category', help='The category to export',required=False)
 parser.add_argument('-g','--page', help='The page to export',required=False)
 parser.add_argument('-n', '--numberOfPages', help='The number of pages to export, or max', required=False, default=500)
+parser.add_argument('--removeEditLinks', help='Remove edit links',required=False, default=False)
+parser.add_argument('--removeSrcset', help='Remove srcset image attributes',required=False, default=True)
 args = parser.parse_args()
+
+if args.removeEditLinks:
+  removeEditLinks = True
+else:
+  removeEditLinks = False
+
+if args.removeSrcset:
+  removeSrcset = True
+else:
+  removeSrcset = False
 
 if args.numberOfPages != "max":
   if args.numberOfPages.isdigit():
@@ -128,6 +140,9 @@ def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title);
     return temp.replace("(","_").replace(")","_").replace("__", "_")
 
+def removeSourceSet(content):
+  return 
+
 for page in pages:
     if (pageOnly > -1) and (page['pageid'] != pageOnly):
         continue
@@ -137,6 +152,17 @@ for page in pages:
     response = S.get(url_page)
     content = response.text
     pos = 0
+
+    if removeEditLinks:
+      while '<span class="mw-editsection">' in content:
+        pos = content.find('<span class="mw-editsection">')
+        pos_end_bracket = content.find(']', pos)
+        pos_end_edit = content.find('</span>', pos_end_bracket)
+        content = content[:pos] + content[pos_end_edit:]
+
+    if removeSrcset:
+      content = re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
+
     while url + "index.php?title=" in content:
         pos = content.find(url + "index.php?title=")
         posendquote = content.find('"', pos)
