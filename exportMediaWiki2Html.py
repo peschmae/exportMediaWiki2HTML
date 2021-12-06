@@ -37,6 +37,7 @@ parser.add_argument('-g','--page', help='The page to export',required=False)
 parser.add_argument('-n', '--numberOfPages', help='The number of pages to export, or max', required=False, default=500)
 parser.add_argument('--removeEditLinks', help='Remove edit links',required=False, default=False)
 parser.add_argument('--removeSrcset', help='Remove srcset image attributes',required=False, default=True)
+parser.add_argument('--fixShortUrl', help='Wheter the wiki is configured to use shortUrls or not. Used to fix internal links',required=False, default=False)
 args = parser.parse_args()
 
 # load templates
@@ -53,6 +54,11 @@ if args.removeSrcset:
   removeSrcset = True
 else:
   removeSrcset = False
+
+if args.fixShortUrl:
+  fixShortUrl = True
+else:
+  fixShortUrl = False
 
 if args.numberOfPages != "max":
   try:
@@ -147,9 +153,6 @@ def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title);
     return temp.replace("(","_").replace(")","_").replace("__", "_")
 
-def removeSourceSet(content):
-  return 
-
 for page in pages:
     if (pageOnly > -1) and (page['pageid'] != pageOnly):
         continue
@@ -179,6 +182,9 @@ for page in pages:
 
     if removeSrcset:
       content = re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
+
+    if fixShortUrl and 'href="/' in content:
+      content = content.replace('href="/', 'href="' + url + 'index.php?title=')
 
     while url + "index.php?title=" in content:
         pos = content.find(url + "index.php?title=")
