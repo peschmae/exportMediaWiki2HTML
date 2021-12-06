@@ -155,9 +155,19 @@ for page in pages:
         continue
     print(page)
     quoted_pagename = quote_title(page['title'])
-    url_page = url + "index.php?title=" + quoted_pagename + "&action=render"
+    url_page = url + "api.php?page=" + quoted_pagename + "&action=parse&prop=text&formatversion=2&format=json"
     response = S.get(url_page)
-    content = response.text
+
+    if not 'parse' in response.json():
+      print("Error while fetching from api")
+      print(response.json())
+      continue
+
+    if 'text' in response.json()['parse']:
+      content = response.json()['parse']['text']
+    else:
+      content = "<p>No content on this page</p>"
+
     pos = 0
 
     if removeEditLinks:
