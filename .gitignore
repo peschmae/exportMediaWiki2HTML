@@ -6,3 +6,4 @@ env
 
 export
 *.html
+!templates/*.html
