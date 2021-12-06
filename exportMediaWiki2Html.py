@@ -10,6 +10,7 @@ import requests
 import json
 import re
 from pathlib import Path
+from shutil import copy
 import argparse
 
 description = """
@@ -37,6 +38,11 @@ parser.add_argument('-n', '--numberOfPages', help='The number of pages to export
 parser.add_argument('--removeEditLinks', help='Remove edit links',required=False, default=False)
 parser.add_argument('--removeSrcset', help='Remove srcset image attributes',required=False, default=True)
 args = parser.parse_args()
+
+# load templates
+
+header = Path('templates/header.html').read_text()
+footer = Path('templates/footer.html').read_text()
 
 if args.removeEditLinks:
   removeEditLinks = True
@@ -201,17 +207,10 @@ for page in pages:
     #content = content.replace('<div class="mw-parser-output">'.encode("utf8"), ''.encode("utf8"))
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
-    f = open("export/" + PageTitleToFilename(page['title']) + ".html", "wb")
-    f.write(("<html>\n<head><title>" + page['title'] + "</title></head>\n<body>\n").encode("utf8"))
-    f.write(("<h1>" + page['title'] + "</h1>").encode("utf8"))
-    f.write(content.encode('utf8'))
-    f.write("</body></html>".encode("utf8"))
-    f.close()
+    with open("export/" + PageTitleToFilename(page['title']) + ".html", "wb") as f:
+      f.write(header.replace('#TITLE#', page['title']).encode("utf8"))
+      f.write(content.encode('utf8'))
+      f.write(footer.encode("utf8"))
+      f.close()
 
-f = open("export/article_not_existing.html", "wb")
-f.write(("<html>\n<head><title>This article does not exist yet</title></head>\n<body>\n").encode("utf8"))
-f.write(("<h1>This article does not exist yet</h1>").encode("utf8"))
-f.write("</body></html>".encode("utf8"))
-f.close()
-
-
+copy('templates/page-not-found.html', 'export/article_not_existing.html')
