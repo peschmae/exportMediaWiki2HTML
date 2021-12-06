@@ -10,7 +10,7 @@ import requests
 import json
 import re
 from pathlib import Path
-from shutil import copy
+from shutil import copy, copytree
 import argparse
 
 description = """
@@ -214,3 +214,4 @@ for page in pages:
       f.close()
 
 copy('templates/page-not-found.html', 'export/article_not_existing.html')
+copytree('templates/css/', 'export/css/', dirs_exist_ok=True)
