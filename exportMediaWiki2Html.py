@@ -10,6 +10,7 @@ import requests
 import json
 import re
 from pathlib import Path
+from shutil import copyfile
 import argparse
 
 description = """
@@ -47,6 +48,8 @@ if args.page is not None:
   pageOnly = int(args.page)
 
 Path("export/img").mkdir(parents=True, exist_ok=True)
+Path("export/css").mkdir(parents=True, exist_ok=True)
+copyfile('pico.classless.min.css', 'export/css/pico.classless.min.css')
 
 S = requests.Session()
 
@@ -198,16 +201,15 @@ for page in pages:
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
     f = open("export/" + PageTitleToFilename(page['title']) + ".html", "wb")
-    f.write(('<html>\n<head>\n<title>' + page['title'] + '</title>\n<link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.classless.min.css">\n</head>\n<body>\n<main>').encode("utf8"))
+    f.write(('<html data-theme="light">\n<head>\n<title>' + page['title'] + '</title>\n<link rel="stylesheet" href="./css/pico.classless.min.css">\n</head>\n<body>\n<main>').encode("utf8"))
     f.write(("<h1>" + page['title'] + "</h1>").encode("utf8"))
     f.write(content.encode('utf8'))
     f.write("</main></body></html>".encode("utf8"))
     f.close()
 
 f = open("export/article_not_existing.html", "wb")
-f.write(('<html>\n<head><title>This article does not exist yet</title><link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.classless.min.css">\n</head>\n<body>\n<main>').encode("utf8"))
+f.write(('<html>\n<head><title>This article does not exist yet</title><link rel="stylesheet" href="./css/pico.classless.min.css">\n</head>\n<body>\n<main>').encode("utf8"))
 f.write(("<h1>This article does not exist yet</h1>").encode("utf8"))
 f.write("</main></body></html>".encode("utf8"))
 f.close()
-
 
