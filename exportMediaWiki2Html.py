@@ -35,13 +35,14 @@ parser.add_argument('-p','--password', help='Your password',required=False)
 parser.add_argument('-c','--category', help='The category to export',required=False)
 parser.add_argument('-g','--page', help='The page to export',required=False)
 parser.add_argument('-n', '--numberOfPages', help='The number of pages to export, or max', required=False, default=500)
+parser.add_argument('--image', help='String used to indicate if a link is to an image', required=False, default='Image')
+parser.add_argument('--file', help='String used to indicate if a link is to a file', required=False, default='File')
 parser.add_argument('--removeEditLinks', help='Remove edit links',required=False, default=False)
 parser.add_argument('--removeSrcset', help='Remove srcset image attributes',required=False, default=True)
 parser.add_argument('--fixShortUrl', help='Wheter the wiki is configured to use shortUrls or not. Used to fix internal links',required=False, default=False)
 args = parser.parse_args()
 
 # load templates
-
 header = Path('templates/header.html').read_text()
 footer = Path('templates/footer.html').read_text()
 
@@ -59,6 +60,9 @@ if args.fixShortUrl:
   fixShortUrl = True
 else:
   fixShortUrl = False
+
+imageIndicator = args.image + ':'
+fileIndicator = args.file + ':'
 
 if args.numberOfPages != "max":
   try:
@@ -191,26 +195,31 @@ for page in pages:
         posendquote = content.find('"', pos)
         linkedpage = content[pos:posendquote]
         linkedpage = linkedpage[linkedpage.find('=') + 1:]
-        linkedpage = linkedpage.replace('%27', '_');
-        if linkedpage.startswith('File:') or linkedpage.startswith('Image:'):
-          if linkedpage.startswith('File:'):
-              linkType = "File:"
-          if linkedpage.startswith('Image:'):
-              linkType = "Image:"
+        linkedpage = linkedpage.replace('%27', '_')
+
+        if linkedpage.startswith(fileIndicator) or linkedpage.startswith(imageIndicator):
+          if linkedpage.startswith(fileIndicator):
+              linkType = fileIndicator
+          if linkedpage.startswith(imageIndicator):
+              linkType = imageIndicator
           origlinkedpage = linkedpage[linkedpage.find(':')+1:]
           linkedpage = parse.unquote(origlinkedpage)
           imgpos = content.find('src="/images/', posendquote)
+
           if imgpos > posendquote:
             imgendquote = content.find('"', imgpos+len(linkType))
-            imgpath = content[imgpos+len(linkType):imgendquote]
+            imgpath = content[imgpos+len(linkType) - 1:imgendquote]
+
           if not linkedpage in downloadedimages:
             DownloadImage(linkedpage, imgpath)
+
           if linkedpage in downloadedimages:
             content = content.replace(url+"index.php?title="+linkType+origlinkedpage, "img/"+linkedpage)
             content = content.replace(imgpath, "img/"+linkedpage)
           else:
             print("Error: not an image? " + linkedpage)
             exit(-1)
+
         elif "&amp;action=edit&amp;redlink=1" in linkedpage:
           content = content[:pos] + "article_not_existing.html\" style='color:red'" + content[posendquote+1:]
         elif "#" in linkedpage:
