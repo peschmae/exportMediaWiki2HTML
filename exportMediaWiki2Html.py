@@ -154,7 +154,7 @@ def DownloadImage(filename, urlimg):
     downloadedimages.append(filename)
 
 def PageTitleToFilename(title):
-    temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title);
+    temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
     return temp.replace("(","_").replace(")","_").replace("__", "_")
 
 for page in pages:
@@ -195,7 +195,7 @@ for page in pages:
         posendquote = content.find('"', pos)
         linkedpage = content[pos:posendquote]
         linkedpage = linkedpage[linkedpage.find('=') + 1:]
-        linkedpage = linkedpage.replace('%27', '_')
+        downloadName = linkedpage.replace('%27', '_')
 
         if linkedpage.startswith(fileIndicator) or linkedpage.startswith(imageIndicator):
           if linkedpage.startswith(fileIndicator):
@@ -210,12 +210,12 @@ for page in pages:
             imgendquote = content.find('"', imgpos+len(linkType))
             imgpath = content[imgpos+len(linkType) - 1:imgendquote]
 
-          if not linkedpage in downloadedimages:
-            DownloadImage(linkedpage, imgpath)
+          if not downloadName in downloadedimages:
+            DownloadImage(downloadName, imgpath)
 
-          if linkedpage in downloadedimages:
-            content = content.replace(url+"index.php?title="+linkType+origlinkedpage, "img/"+linkedpage)
-            content = content.replace(imgpath, "img/"+linkedpage)
+          if downloadName in downloadedimages:
+            content = content.replace(url+"index.php?title="+linkType+origlinkedpage, "img/"+downloadName)
+            content = content.replace(imgpath, "img/"+downloadName)
           else:
             print("Error: not an image? " + linkedpage)
             exit(-1)
