@@ -10,6 +10,7 @@ import requests
 import json
 import re
 from pathlib import Path
+from time import sleep
 import argparse
 
 description = """
@@ -81,11 +82,12 @@ if args.username is not None and args.password is not None:
     exit(-1)
 
 if categoryOnly != -1:
-  url_allpages = url + "/api.php?action=query&list=categorymembers&format=json&cmpageid=" + str(categoryOnly)
+  url_allpages = url + "/api.php?action=query&list=categorymembers&format=json&cmlimit=max&cmpageid=" + str(categoryOnly)
 else:
   url_allpages = url + "/api.php?action=query&list=allpages&aplimit=500&format=json"
 response = S.get(url_allpages)
 data = response.json()
+
 if "error" in data:
   print(data)
   if data['error']['code'] == "readapidenied":
@@ -118,21 +120,46 @@ def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title);
     return temp.replace("(","_").replace(")","_").replace("__", "_")
 
+def removeEditLinks(content):
+  while '<span class="mw-editsection">' in content:
+    pos = content.find('<span class="mw-editsection">')
+    pos_end_bracket = content.find(']', pos)
+    pos_end_edit = content.find('</span>', pos_end_bracket)
+    content = content[:pos] + content[pos_end_edit:]
+
+  return content
+
 for page in pages:
+    sleep(1)
     if (pageOnly > -1) and (page['pageid'] != pageOnly):
         continue
     print(page)
     quoted_pagename = quote_title(page['title'])
-    url_page = url + "index.php?title=" + quoted_pagename + "&action=render"
+    url_page = url + "api.php?page=" + quoted_pagename + "&action=parse&prop=text&formatversion=2&format=json"
     response = S.get(url_page)
-    content = response.text
+    
+    if not 'parse' in response.json():
+      print("Error while fetching from api")
+      print(response.json())
+      continue
+
+    if 'text' in response.json()['parse']:
+      content = response.json()['parse']['text']
+    else:
+      content = "<p>No content on this page</p>"
     pos = 0
+
+    content = removeEditLinks(content)
+
+    if 'href="/' in content:
+      content = content.replace('href="/', 'href="' + url + 'index.php?title=')
+
     while url + "index.php?title=" in content:
         pos = content.find(url + "index.php?title=")
         posendquote = content.find('"', pos)
         linkedpage = content[pos:posendquote]
         linkedpage = linkedpage[linkedpage.find('=') + 1:]
-        linkedpage = linkedpage.replace('%27', '_');
+        linkedpage = linkedpage.replace('%27', '_')
         if linkedpage.startswith('File:') or linkedpage.startswith('Image:'):
           if linkedpage.startswith('File:'):
               linkType = "File:"
@@ -160,7 +187,7 @@ for page in pages:
           content = content[:pos] + linkWithoutAnchor + ".html#" + linkedpage[linkedpage.find('#')+1:] + content[posendquote:]
         else:
           linkedpage = PageTitleToFilename(linkedpage)
-          content = content[:pos] + linkedpage + ".html" + content[posendquote:]
+          content = content[:pos] + "./" + linkedpage + ".html" + content[posendquote:]
 
     #content = content.replace('<div class="mw-parser-output">'.encode("utf8"), ''.encode("utf8"))
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
