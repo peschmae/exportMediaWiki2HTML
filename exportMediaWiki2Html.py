@@ -40,6 +40,7 @@ parser.add_argument('--file', help='String used to indicate if a link is to a fi
 parser.add_argument('--removeEditLinks', help='Remove edit links',required=False, default=False)
 parser.add_argument('--removeSrcset', help='Remove srcset image attributes',required=False, default=True)
 parser.add_argument('--fixShortUrl', help='Wheter the wiki is configured to use shortUrls or not. Used to fix internal links',required=False, default=False)
+parser.add_argument('--enableIndex', help='Creates index file with a link to all downloaded pages',required=False, default=True)
 args = parser.parse_args()
 
 # load templates
@@ -60,6 +61,11 @@ if args.fixShortUrl:
   fixShortUrl = True
 else:
   fixShortUrl = False
+
+if args.enableIndex:
+  enableIndex = True
+else:
+  enableIndex = False
 
 imageIndicator = args.image + ':'
 fileIndicator = args.file + ':'
@@ -84,6 +90,28 @@ if args.category is not None:
   categoryOnly = int(args.category)
 if args.page is not None:
   pageOnly = int(args.page)
+
+def quote_title(title):
+  return parse.quote(page['title'].replace(' ', '_'))
+
+downloadedimages = []
+def DownloadImage(filename, urlimg):
+  if not filename in downloadedimages:
+    if '/thumb/' in urlimg:
+      urlimg = urlimg.replace('/thumb/', '/')
+      urlimg = urlimg[:urlimg.rindex('/')]
+    response = S.get(url + urlimg)
+    content = response.content
+    f = open("export/img/" + filename, "wb")
+    f.write(content)
+    f.close()
+    downloadedimages.append(filename)
+
+downloadedPages = []
+def PageTitleToFilename(title):
+    temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
+    return temp.replace("(","_").replace(")","_").replace("__", "_")
+
 
 Path("export/img").mkdir(parents=True, exist_ok=True)
 
@@ -136,26 +164,6 @@ if categoryOnly != -1:
   pages = data['query']['categorymembers']
 else:
   pages = data['query']['allpages']
-
-def quote_title(title):
-  return parse.quote(page['title'].replace(' ', '_'))
-
-downloadedimages = []
-def DownloadImage(filename, urlimg):
-  if not filename in downloadedimages:
-    if '/thumb/' in urlimg:
-      urlimg = urlimg.replace('/thumb/', '/')
-      urlimg = urlimg[:urlimg.rindex('/')]
-    response = S.get(url + urlimg)
-    content = response.content
-    f = open("export/img/" + filename, "wb")
-    f.write(content)
-    f.close()
-    downloadedimages.append(filename)
-
-def PageTitleToFilename(title):
-    temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
-    return temp.replace("(","_").replace(")","_").replace("__", "_")
 
 for page in pages:
     if (pageOnly > -1) and (page['pageid'] != pageOnly):
@@ -233,11 +241,29 @@ for page in pages:
     #content = content.replace('<div class="mw-parser-output">'.encode("utf8"), ''.encode("utf8"))
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
-    with open("export/" + PageTitleToFilename(page['title']) + ".html", "wb") as f:
+    pageFilename = PageTitleToFilename(page['title'])
+    with open("export/" + pageFilename + ".html", "wb") as f:
       f.write(header.replace('#TITLE#', page['title']).encode("utf8"))
       f.write(content.encode('utf8'))
       f.write(footer.encode("utf8"))
       f.close()
 
+    downloadedPages.append((pageFilename, page['title']))
+
+if enableIndex:
+  # Write index file for easier overview
+  with open("export/index.html", "wb") as f:
+    f.write(header.replace('#TITLE#', 'Index').encode("utf8"))
+
+    f.write('<ul>'.encode('utf8'))
+
+    for (filename, pageTitle) in downloadedPages:
+      f.write(f'<li><a href="{filename}.html">{pageTitle}</a></li>'.encode('utf8'))
+
+    f.write('</ul>'.encode('utf8'))
+    f.write(footer.encode("utf8"))
+    f.close()
+
 copy('templates/page-not-found.html', 'export/article_not_existing.html')
 copytree('templates/css/', 'export/css/', dirs_exist_ok=True)
+
