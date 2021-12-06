@@ -10,7 +10,6 @@ import requests
 import json
 import re
 from pathlib import Path
-from time import sleep
 import argparse
 
 description = """
@@ -84,7 +83,7 @@ if args.username is not None and args.password is not None:
 if categoryOnly != -1:
   url_allpages = url + "/api.php?action=query&list=categorymembers&format=json&cmlimit=max&cmpageid=" + str(categoryOnly)
 else:
-  url_allpages = url + "/api.php?action=query&list=allpages&aplimit=500&format=json"
+  url_allpages = url + "/api.php?action=query&list=allpages&aplimit=max&format=json"
 response = S.get(url_allpages)
 data = response.json()
 
@@ -105,6 +104,7 @@ def quote_title(title):
 
 downloadedimages = []
 def DownloadImage(filename, urlimg):
+  #print("Downloading image: " + urlimg)
   if not filename in downloadedimages:
     if '/thumb/' in urlimg:
       urlimg = urlimg.replace('/thumb/', '/')
@@ -129,8 +129,10 @@ def removeEditLinks(content):
 
   return content
 
+def removeSourceSet(content):
+  return re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
+
 for page in pages:
-    sleep(1)
     if (pageOnly > -1) and (page['pageid'] != pageOnly):
         continue
     print(page)
@@ -150,6 +152,7 @@ for page in pages:
     pos = 0
 
     content = removeEditLinks(content)
+    content = removeSourceSet(content)
 
     if 'href="/' in content:
       content = content.replace('href="/', 'href="' + url + 'index.php?title=')
@@ -159,12 +162,13 @@ for page in pages:
         posendquote = content.find('"', pos)
         linkedpage = content[pos:posendquote]
         linkedpage = linkedpage[linkedpage.find('=') + 1:]
-        linkedpage = linkedpage.replace('%27', '_')
-        if linkedpage.startswith('File:') or linkedpage.startswith('Image:'):
+        if linkedpage.startswith('File:') or linkedpage.startswith('Image:') or linkedpage.startswith('Datei:'):
           if linkedpage.startswith('File:'):
               linkType = "File:"
           if linkedpage.startswith('Image:'):
               linkType = "Image:"
+          if linkedpage.startswith('Datei:'):
+              linkType = "Datei:"
           origlinkedpage = linkedpage[linkedpage.find(':')+1:]
           linkedpage = parse.unquote(origlinkedpage)
           imgpos = content.find('src="/images/', posendquote)
@@ -172,13 +176,13 @@ for page in pages:
             imgendquote = content.find('"', imgpos+len(linkType))
             imgpath = content[imgpos+len(linkType):imgendquote]
           if not linkedpage in downloadedimages:
-            DownloadImage(linkedpage, imgpath)
+            DownloadImage(linkedpage.replace('%27', '_'), imgpath)
           if linkedpage in downloadedimages:
-            content = content.replace(url+"index.php?title="+linkType+origlinkedpage, "img/"+linkedpage)
-            content = content.replace(imgpath, "img/"+linkedpage)
+            content = content.replace(url+"index.php?title="+linkType+origlinkedpage, "./img/"+linkedpage)
+            content = content.replace(imgpath, "./img/"+linkedpage)
           else:
             print("Error: not an image? " + linkedpage)
-            exit(-1)
+            continue
         elif "&amp;action=edit&amp;redlink=1" in linkedpage:
           content = content[:pos] + "article_not_existing.html\" style='color:red'" + content[posendquote+1:]
         elif "#" in linkedpage:
@@ -190,6 +194,7 @@ for page in pages:
           content = content[:pos] + "./" + linkedpage + ".html" + content[posendquote:]
 
     #content = content.replace('<div class="mw-parser-output">'.encode("utf8"), ''.encode("utf8"))
+    content = content.replace("/./", "./")
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
     f = open("export/" + PageTitleToFilename(page['title']) + ".html", "wb")
