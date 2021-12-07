@@ -313,9 +313,9 @@ if enableIndex:
   with open(export_path + "index.html", "wb") as f:
     f.write(header.replace('#TITLE#', 'Index').encode("utf8"))
 
-    for k,v in pagesPerCategory.items():
-      f.write(f'<details>\n<summary>{k}</summary>\n<ul>\n'.encode('utf8'))
-      for (filename, pageTitle) in v:
+    for key in sorted(pagesPerCategory.keys()):
+      f.write(f'<details>\n<summary>{key}</summary>\n<ul>\n'.encode('utf8'))
+      for (filename, pageTitle) in pagesPerCategory[key]:
         f.write(f'<li><a href="{filename}">{pageTitle}</a></li>\n'.encode('utf8'))
       f.write('</ul>\n</details>'.encode('utf8'))
 
