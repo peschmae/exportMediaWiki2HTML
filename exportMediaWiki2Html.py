@@ -43,6 +43,7 @@ parser.add_argument('--removeEditLinks', help='Remove edit links',required=False
 parser.add_argument('--removeSrcset', help='Remove srcset image attributes',required=False, default=True)
 parser.add_argument('--fixShortUrl', help='Wheter the wiki is configured to use shortUrls or not. Used to fix internal links',required=False, default=False)
 parser.add_argument('--enableIndex', help='Creates index file with a link to all downloaded pages',required=False, default=True)
+parser.add_argument('--debug', help='Enables debug output',required=False, default=False)
 args = parser.parse_args()
 
 file_path = os.path.abspath(os.path.dirname(__file__)) + '/'
@@ -104,6 +105,11 @@ if args.numberOfPages != "max":
 else:
   numberOfPages = "max"
 
+if args.debug:
+  debug = True
+else:
+  debug = False
+
 url = args.url
 if not url.endswith('/'):
   url = url + '/'
@@ -125,6 +131,8 @@ def quote_title(title):
 downloadedimages = []
 def DownloadImage(filename, urlimg):
   if not filename in downloadedimages:
+    if debug:
+      print(f'Downloading {filename}')
     if '/thumb/' in urlimg:
       urlimg = urlimg.replace('/thumb/', '/')
       urlimg = urlimg[:urlimg.rindex('/')]
@@ -147,6 +155,8 @@ def PageTitleToFilename(title):
 S = requests.Session()
 
 if args.username is not None and args.password is not None:
+  if debug:
+    print(f'Trying to login using {args.username}')
   LgUser = args.username
   LgPassword = args.password
 
@@ -157,7 +167,7 @@ if args.username is not None and args.password is not None:
       'type':"login",
       'format':"json"
   }
-  R = S.get(url=url + "/api.php", params=PARAMS_0)
+  R = S.get(url=f'{url}api.php', params=PARAMS_0)
   DATA = R.json()
   LOGIN_TOKEN = DATA['query']['tokens']['logintoken']
 
@@ -170,16 +180,16 @@ if args.username is not None and args.password is not None:
       'format':"json"
   }
 
-  R = S.post(url + "/api.php", data=PARAMS_1)
+  R = S.post(f'{url}api.php', data=PARAMS_1)
   DATA = R.json()
   if "error" in DATA:
     print(DATA)
     exit(-1)
 
 if categoryOnly != -1:
-  url_allpages = url + "/api.php?action=query&list=categorymembers&format=json&cmpageid=" + str(categoryOnly) + "&cmlimit=" + numberOfPages
+  url_allpages = f'{url}api.php?action=query&list=categorymembers&format=json&cmpageid={categoryOnly}&cmlimit={numberOfPages}'
 else:
-  url_allpages = url + "/api.php?action=query&list=allpages&format=json&aplimit=" + numberOfPages
+  url_allpages = f'{url}api.php?action=query&list=allpages&format=json&aplimit={numberOfPages}'
 response = S.get(url_allpages)
 data = response.json()
 
@@ -187,7 +197,7 @@ if "error" in data:
   print(data)
   if data['error']['code'] == "readapidenied":
     print()
-    print("get login token here: " + url + "/api.php?action=query&meta=tokens&type=login")
+    print(f'get login token here: {url}/api.php?action=query&meta=tokens&type=login')
     print("and then call this script with parameters: myuser topsecret mytoken")
     exit(-1)
 
@@ -201,7 +211,7 @@ for page in pages:
         continue
     print(page)
     quoted_pagename = quote_title(page['title'])
-    url_page = url + "api.php?page=" + quoted_pagename + "&action=parse&prop=text&formatversion=2&format=json"
+    url_page = f'{url}api.php?action=parse&prop=text|categories&formatversion=2&format=json&page={quoted_pagename}'
     response = S.get(url_page)
 
     if not 'parse' in response.json():
@@ -227,10 +237,10 @@ for page in pages:
       content = re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
 
     if fixShortUrl and 'href="/' in content:
-      content = content.replace('href="/', 'href="' + url + 'index.php?title=')
+      content = content.replace('href="/', f'href="{url}index.php?title=')
 
-    while url + "index.php?title=" in content:
-        pos = content.find(url + "index.php?title=")
+    while f'{url}index.php?title=' in content:
+        pos = content.find(f'{url}index.php?title=')
         posendquote = content.find('"', pos)
         linkedpage = content[pos:posendquote]
         linkedpage = linkedpage[linkedpage.find('=') + 1:]
@@ -255,8 +265,8 @@ for page in pages:
             DownloadImage(downloadName, imgpath)
 
           if downloadName in downloadedimages:
-            content = content.replace(url+"index.php?title="+linkType+origlinkedpage, "img/"+downloadName)
-            content = content.replace(imgpath, "img/"+downloadName)
+            content = content.replace(f'{url}index.php?title={linkType}{origlinkedpage}', f'img/{downloadName}')
+            content = content.replace(imgpath, f'img/{downloadName}')
           else:
             print("Error: not an image? " + linkedpage)
             exit(-1)
