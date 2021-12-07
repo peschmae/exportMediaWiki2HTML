@@ -53,10 +53,12 @@ footer = Path(file_path + 'templates/footer.html').read_text()
 
 if args.exportPath:
   export_path = args.exportPath
+  if export_path[-1] != '/':
+    export_path = export_path + '/'
 else:
-  export_path = file_path + 'export'
+  export_path = file_path + 'export/'
 
-Path(export_path + "/img").mkdir(parents=True, exist_ok=True)
+Path(export_path + "img/").mkdir(parents=True, exist_ok=True)
 
 if args.removeEditLinks:
   removeEditLinks = True
@@ -120,7 +122,7 @@ def DownloadImage(filename, urlimg):
       urlimg = urlimg[:urlimg.rindex('/')]
     response = S.get(url + urlimg)
     content = response.content
-    f = open(export_path + "/img/" + filename, "wb")
+    f = open(export_path + "img/" + filename, "wb")
     f.write(content)
     f.close()
     downloadedimages.append(filename)
@@ -218,13 +220,15 @@ for page in pages:
         posendquote = content.find('"', pos)
         linkedpage = content[pos:posendquote]
         linkedpage = linkedpage[linkedpage.find('=') + 1:]
-        downloadName = linkedpage.replace('%27', '_')
 
         if linkedpage.startswith(fileIndicator) or linkedpage.startswith(imageIndicator):
+          downloadName = linkedpage.replace('%27', '_')
           if linkedpage.startswith(fileIndicator):
               linkType = fileIndicator
+              downloadName = downloadName.replace(fileIndicator, '')
           if linkedpage.startswith(imageIndicator):
               linkType = imageIndicator
+              downloadName = downloadName.replace(imageIndicator, '')
           origlinkedpage = linkedpage[linkedpage.find(':')+1:]
           linkedpage = parse.unquote(origlinkedpage)
           imgpos = content.find('src="/images/', posendquote)
@@ -244,7 +248,7 @@ for page in pages:
             exit(-1)
 
         elif "&amp;action=edit&amp;redlink=1" in linkedpage:
-          content = content[:pos] + "article_not_existing.html\" style='color:red'" + content[posendquote+1:]
+          content = content[:pos] + 'article_not_existing.html" style="color:red;"' + content[posendquote+1:]
         elif "#" in linkedpage:
           linkWithoutAnchor = linkedpage[0:linkedpage.find('#')]
           linkWithoutAnchor = PageTitleToFilename(linkWithoutAnchor)
