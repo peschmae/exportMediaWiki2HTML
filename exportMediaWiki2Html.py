@@ -12,6 +12,8 @@ import re
 import os
 from pathlib import Path
 from shutil import copy, copytree
+from pprint import pprint
+from collections import defaultdict
 import argparse
 
 description = """
@@ -148,6 +150,8 @@ def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
     return temp.replace("(","_").replace(")","_").replace("__", "_")
 
+pagesPerCategory = defaultdict(list)
+
 ###############
 # Here starts the logic
 ###############
@@ -194,7 +198,7 @@ response = S.get(url_allpages)
 data = response.json()
 
 if "error" in data:
-  print(data)
+  pprint(data)
   if data['error']['code'] == "readapidenied":
     print()
     print(f'get login token here: {url}/api.php?action=query&meta=tokens&type=login')
@@ -214,9 +218,12 @@ for page in pages:
     url_page = f'{url}api.php?action=parse&prop=text|categories&formatversion=2&format=json&page={quoted_pagename}'
     response = S.get(url_page)
 
+    if debug:
+      pprint(response.json())
+
     if not 'parse' in response.json():
       print("Error while fetching from api")
-      print(response.json())
+      pprint(response.json())
       continue
 
     if 'text' in response.json()['parse']:
@@ -293,18 +300,32 @@ for page in pages:
       f.close()
 
     downloadedPages.append((pageFilename, page['title']))
+    if 'categories' in response.json()['parse']:
+      for categoryItem in response.json()['parse']['categories']:
+        category = categoryItem.get('category')
+        if debug:
+          pprint(category)
+
+        pagesPerCategory[category].append((pageFilename, page['title']))
 
 if enableIndex:
   # Write index file for easier overview
   with open(export_path + "index.html", "wb") as f:
     f.write(header.replace('#TITLE#', 'Index').encode("utf8"))
 
-    f.write('<ul>\n'.encode('utf8'))
+    for k,v in pagesPerCategory.items():
+      f.write(f'<details>\n<summary>{k}</summary>\n<ul>\n'.encode('utf8'))
+      for (filename, pageTitle) in v:
+        f.write(f'<li><a href="{filename}">{pageTitle}</a></li>\n'.encode('utf8'))
+      f.write('</ul>\n</details>'.encode('utf8'))
 
+    f.write(f'<details>\n<summary>All pages</summary>\n<ul>\n'.encode('utf8'))
+    f.write('<ul>\n'.encode('utf8'))
     for (filename, pageTitle) in downloadedPages:
       f.write(f'<li><a href="{filename}">{pageTitle}</a></li>\n'.encode('utf8'))
-
     f.write('</ul>\n'.encode('utf8'))
+    f.write('</ul>\n</details>'.encode('utf8'))
+
     f.write(footer.encode("utf8"))
     f.close()
 
