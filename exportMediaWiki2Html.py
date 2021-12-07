@@ -51,6 +51,10 @@ file_path = os.path.abspath(os.path.dirname(__file__)) + '/'
 header = Path(file_path + 'templates/header.html').read_text()
 footer = Path(file_path + 'templates/footer.html').read_text()
 
+###############
+# Handle arguments
+###############
+
 if args.exportPath:
   export_path = args.exportPath
   if export_path[-1] != '/':
@@ -111,6 +115,10 @@ if args.category is not None:
 if args.page is not None:
   pageOnly = int(args.page)
 
+###############
+# Helper functions
+###############
+
 def quote_title(title):
   return parse.quote(page['title'].replace(' ', '_'))
 
@@ -131,6 +139,10 @@ downloadedPages = []
 def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
     return temp.replace("(","_").replace(")","_").replace("__", "_")
+
+###############
+# Here starts the logic
+###############
 
 S = requests.Session()
 
@@ -170,6 +182,7 @@ else:
   url_allpages = url + "/api.php?action=query&list=allpages&format=json&aplimit=" + numberOfPages
 response = S.get(url_allpages)
 data = response.json()
+
 if "error" in data:
   print(data)
   if data['error']['code'] == "readapidenied":
@@ -177,6 +190,7 @@ if "error" in data:
     print("get login token here: " + url + "/api.php?action=query&meta=tokens&type=login")
     print("and then call this script with parameters: myuser topsecret mytoken")
     exit(-1)
+
 if categoryOnly != -1:
   pages = data['query']['categorymembers']
 else:
@@ -257,12 +271,13 @@ for page in pages:
           linkedpage = PageTitleToFilename(linkedpage)
           content = content[:pos] + linkedpage + ".html" + content[posendquote:]
 
-    #content = content.replace('<div class="mw-parser-output">'.encode("utf8"), ''.encode("utf8"))
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
     pageFilename = PageTitleToFilename(page['title']) + '.html'
     with open(export_path + pageFilename, "wb") as f:
       f.write(header.replace('#TITLE#', page['title']).encode("utf8"))
+      if enableIndex:
+        f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
       f.write(content.encode('utf8'))
       f.write(footer.encode("utf8"))
       f.close()
