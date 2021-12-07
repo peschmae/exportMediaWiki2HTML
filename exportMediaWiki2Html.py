@@ -9,6 +9,7 @@ from urllib import parse
 import requests
 import json
 import re
+import os
 from pathlib import Path
 from shutil import copy, copytree
 import argparse
@@ -35,6 +36,7 @@ parser.add_argument('-p','--password', help='Your password',required=False)
 parser.add_argument('-c','--category', help='The category to export',required=False)
 parser.add_argument('-g','--page', help='The page to export',required=False)
 parser.add_argument('-n', '--numberOfPages', help='The number of pages to export, or max', required=False, default=500)
+parser.add_argument('-o', '--exportPath', help='Where to export to', required=False)
 parser.add_argument('--image', help='String used to indicate if a link is to an image', required=False, default='Image')
 parser.add_argument('--file', help='String used to indicate if a link is to a file', required=False, default='File')
 parser.add_argument('--removeEditLinks', help='Remove edit links',required=False, default=False)
@@ -43,9 +45,18 @@ parser.add_argument('--fixShortUrl', help='Wheter the wiki is configured to use 
 parser.add_argument('--enableIndex', help='Creates index file with a link to all downloaded pages',required=False, default=True)
 args = parser.parse_args()
 
+file_path = os.path.abspath(os.path.dirname(__file__)) + '/'
+
 # load templates
-header = Path('templates/header.html').read_text()
-footer = Path('templates/footer.html').read_text()
+header = Path(file_path + 'templates/header.html').read_text()
+footer = Path(file_path + 'templates/footer.html').read_text()
+
+if args.exportPath:
+  export_path = args.exportPath
+else:
+  export_path = file_path + 'export'
+
+Path(export_path + "/img").mkdir(parents=True, exist_ok=True)
 
 if args.removeEditLinks:
   removeEditLinks = True
@@ -67,8 +78,15 @@ if args.enableIndex:
 else:
   enableIndex = False
 
-imageIndicator = args.image + ':'
-fileIndicator = args.file + ':'
+if args.image[-1] == ':':
+  imageIndicator = args.image
+else:
+  imageIndicator = args.image + ':'
+
+if args.file[-1] == ':':
+  fileIndicator = args.file
+else:
+  fileIndicator = args.file + ':'
 
 if args.numberOfPages != "max":
   try:
@@ -102,7 +120,7 @@ def DownloadImage(filename, urlimg):
       urlimg = urlimg[:urlimg.rindex('/')]
     response = S.get(url + urlimg)
     content = response.content
-    f = open("export/img/" + filename, "wb")
+    f = open(export_path + "/img/" + filename, "wb")
     f.write(content)
     f.close()
     downloadedimages.append(filename)
@@ -111,9 +129,6 @@ downloadedPages = []
 def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
     return temp.replace("(","_").replace(")","_").replace("__", "_")
-
-
-Path("export/img").mkdir(parents=True, exist_ok=True)
 
 S = requests.Session()
 
@@ -241,8 +256,8 @@ for page in pages:
     #content = content.replace('<div class="mw-parser-output">'.encode("utf8"), ''.encode("utf8"))
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
-    pageFilename = PageTitleToFilename(page['title'])
-    with open("export/" + pageFilename + ".html", "wb") as f:
+    pageFilename = PageTitleToFilename(page['title']) + '.html'
+    with open(export_path + pageFilename, "wb") as f:
       f.write(header.replace('#TITLE#', page['title']).encode("utf8"))
       f.write(content.encode('utf8'))
       f.write(footer.encode("utf8"))
@@ -252,18 +267,19 @@ for page in pages:
 
 if enableIndex:
   # Write index file for easier overview
-  with open("export/index.html", "wb") as f:
+  with open(export_path + "index.html", "wb") as f:
     f.write(header.replace('#TITLE#', 'Index').encode("utf8"))
 
-    f.write('<ul>'.encode('utf8'))
+    f.write('<ul>\n'.encode('utf8'))
 
     for (filename, pageTitle) in downloadedPages:
-      f.write(f'<li><a href="{filename}.html">{pageTitle}</a></li>'.encode('utf8'))
+      f.write(f'<li><a href="{filename}">{pageTitle}</a></li>\n'.encode('utf8'))
 
-    f.write('</ul>'.encode('utf8'))
+    f.write('</ul>\n'.encode('utf8'))
     f.write(footer.encode("utf8"))
     f.close()
 
-copy('templates/page-not-found.html', 'export/article_not_existing.html')
-copytree('templates/css/', 'export/css/', dirs_exist_ok=True)
+copy(file_path + 'templates/page-not-found.html', export_path + 'article_not_existing.html')
+if not Path(export_path + 'css/').exists():
+  copytree(file_path + 'templates/css/', export_path + 'css/')
 
