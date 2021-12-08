@@ -177,7 +177,67 @@ def getPageContent(pageName):
 
   return None, None
 
-def sanitizeContent(content):
+# Downloads images, and replaces links with internal references
+def cleanupContent(content):
+  pos = 0
+
+  if removeEditLinks:
+    while '<span class="mw-editsection">' in content:
+      pos = content.find('<span class="mw-editsection">')
+      pos_end_bracket = content.find(']', pos)
+      pos_end_edit = content.find('</span>', pos_end_bracket)
+      content = content[:pos] + content[pos_end_edit:]
+
+  if removeSrcset:
+    content = re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
+
+  if fixShortUrl and 'href="/' in content:
+    content = content.replace('href="/', f'href="{url}index.php?title=')
+
+  while f'{url}index.php?title=' in content:
+      pos = content.find(f'{url}index.php?title=')
+      posendquote = content.find('"', pos)
+      linkedpage = content[pos:posendquote]
+      linkedpage = linkedpage[linkedpage.find('=') + 1:]
+
+      if linkedpage.startswith(fileIndicator) or linkedpage.startswith(imageIndicator):
+        downloadName = linkedpage.replace('%27', '_')
+        if linkedpage.startswith(fileIndicator):
+            linkType = fileIndicator
+            downloadName = downloadName.replace(fileIndicator, '')
+        if linkedpage.startswith(imageIndicator):
+            linkType = imageIndicator
+            downloadName = downloadName.replace(imageIndicator, '')
+        origlinkedpage = linkedpage[linkedpage.find(':')+1:]
+        linkedpage = parse.unquote(origlinkedpage)
+        imgpos = content.find('src="/images/', posendquote)
+
+        if imgpos > posendquote:
+          imgendquote = content.find('"', imgpos+len(linkType))
+          imgpath = content[imgpos+len(linkType) - 1:imgendquote]
+        else:
+          imgpath = linkedpage.replace('%27', '_')
+
+        if not downloadName in downloadedimages:
+          DownloadImage(downloadName, imgpath)
+
+        if downloadName in downloadedimages:
+          content = content.replace(f'{url}index.php?title={linkType}{origlinkedpage}', f'img/{downloadName}')
+          content = content.replace(imgpath, f'img/{downloadName}')
+        else:
+          print("Error: not an image? " + linkedpage)
+          exit(-1)
+
+      elif "&amp;action=edit&amp;redlink=1" in linkedpage:
+        content = content[:pos] + 'article_not_existing.html" style="color:red;"' + content[posendquote+1:]
+      elif "#" in linkedpage:
+        linkWithoutAnchor = linkedpage[0:linkedpage.find('#')]
+        linkWithoutAnchor = PageTitleToFilename(linkWithoutAnchor)
+        content = content[:pos] + linkWithoutAnchor + ".html#" + linkedpage[linkedpage.find('#')+1:] + content[posendquote:]
+      else:
+        linkedpage = PageTitleToFilename(linkedpage)
+        content = content[:pos] + linkedpage + ".html" + content[posendquote:]
+  content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
   return content
 
@@ -241,89 +301,33 @@ else:
   pages = data['query']['allpages']
 
 for page in pages:
-    if (pageOnly > -1) and (page['pageid'] != pageOnly):
-        continue
-    print(page)
+  if (pageOnly > -1) and (page['pageid'] != pageOnly):
+      continue
+  print(page)
 
-    content, categories = getPageContent(page['title'])
-    if content is None:
-      content = '<p>No content on this page</p>'
+  content, categories = getPageContent(page['title'])
+  if content is None:
+    content = '<p>No content on this page</p>'
 
-    pos = 0
+  content = cleanupContent(content)
 
-    if removeEditLinks:
-      while '<span class="mw-editsection">' in content:
-        pos = content.find('<span class="mw-editsection">')
-        pos_end_bracket = content.find(']', pos)
-        pos_end_edit = content.find('</span>', pos_end_bracket)
-        content = content[:pos] + content[pos_end_edit:]
+  pageFilename = PageTitleToFilename(page['title']) + '.html'
+  with open(export_path + pageFilename, "wb") as f:
+    f.write(header.replace('#TITLE#', page['title']).encode("utf8"))
+    if enableIndex:
+      f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
+    f.write(content.encode('utf8'))
+    f.write(footer.encode("utf8"))
+    f.close()
 
-    if removeSrcset:
-      content = re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
+  downloadedPages.append((pageFilename, page['title']))
+  if isinstance(categories, list):
+    for categoryItem in categories:
+      category = categoryItem.get('category')
+      if debug:
+        pprint(category)
 
-    if fixShortUrl and 'href="/' in content:
-      content = content.replace('href="/', f'href="{url}index.php?title=')
-
-    while f'{url}index.php?title=' in content:
-        pos = content.find(f'{url}index.php?title=')
-        posendquote = content.find('"', pos)
-        linkedpage = content[pos:posendquote]
-        linkedpage = linkedpage[linkedpage.find('=') + 1:]
-
-        if linkedpage.startswith(fileIndicator) or linkedpage.startswith(imageIndicator):
-          downloadName = linkedpage.replace('%27', '_')
-          if linkedpage.startswith(fileIndicator):
-              linkType = fileIndicator
-              downloadName = downloadName.replace(fileIndicator, '')
-          if linkedpage.startswith(imageIndicator):
-              linkType = imageIndicator
-              downloadName = downloadName.replace(imageIndicator, '')
-          origlinkedpage = linkedpage[linkedpage.find(':')+1:]
-          linkedpage = parse.unquote(origlinkedpage)
-          imgpos = content.find('src="/images/', posendquote)
-
-          if imgpos > posendquote:
-            imgendquote = content.find('"', imgpos+len(linkType))
-            imgpath = content[imgpos+len(linkType) - 1:imgendquote]
-
-          if not downloadName in downloadedimages:
-            DownloadImage(downloadName, imgpath)
-
-          if downloadName in downloadedimages:
-            content = content.replace(f'{url}index.php?title={linkType}{origlinkedpage}', f'img/{downloadName}')
-            content = content.replace(imgpath, f'img/{downloadName}')
-          else:
-            print("Error: not an image? " + linkedpage)
-            exit(-1)
-
-        elif "&amp;action=edit&amp;redlink=1" in linkedpage:
-          content = content[:pos] + 'article_not_existing.html" style="color:red;"' + content[posendquote+1:]
-        elif "#" in linkedpage:
-          linkWithoutAnchor = linkedpage[0:linkedpage.find('#')]
-          linkWithoutAnchor = PageTitleToFilename(linkWithoutAnchor)
-          content = content[:pos] + linkWithoutAnchor + ".html#" + linkedpage[linkedpage.find('#')+1:] + content[posendquote:]
-        else:
-          linkedpage = PageTitleToFilename(linkedpage)
-          content = content[:pos] + linkedpage + ".html" + content[posendquote:]
-    content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
-
-    pageFilename = PageTitleToFilename(page['title']) + '.html'
-    with open(export_path + pageFilename, "wb") as f:
-      f.write(header.replace('#TITLE#', page['title']).encode("utf8"))
-      if enableIndex:
-        f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
-      f.write(content.encode('utf8'))
-      f.write(footer.encode("utf8"))
-      f.close()
-
-    downloadedPages.append((pageFilename, page['title']))
-    if isinstance(categories, list):
-      for categoryItem in categories:
-        category = categoryItem.get('category')
-        if debug:
-          pprint(category)
-
-        pagesPerCategory[category].append((pageFilename, page['title']))
+      pagesPerCategory[category].append((pageFilename, page['title']))
 
 if enableIndex:
   # Write index file for easier overview
@@ -355,7 +359,7 @@ for key in sorted(pagesPerCategory.keys()):
     content, *_ = getPageContent(f'Kategorie:{key}')
     if content is None:
       content = '<p>No content on this page</p>'
-    content = sanitizeContent(content)
+    content = cleanupContent(content)
 
     if enableIndex:
       f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
