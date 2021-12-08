@@ -294,6 +294,7 @@ if args.username is not None and args.password is not None:
     print(data)
     exit(-1)
 
+# user is now logged in, we can now start fetching the pages
 if categoryOnly != -1:
   params_all_pages = {
     'action': 'query',
@@ -310,28 +311,10 @@ else:
     'aplimit': numberOfPages
   }
 
-response = session.get(api_url, params=params_all_pages)
-data = response.json()
-
-if "error" in data:
-  pprint(data)
-  if data['error']['code'] == "readapidenied":
-    print()
-    print(f'get login token here: {url}/api.php?action=query&meta=tokens&type=login')
-    print("and then call this script with parameters: myuser topsecret mytoken")
-    exit(-1)
-
-if categoryOnly != -1:
-  pages = data['query']['categorymembers']
-else:
-  pages = data['query']['allpages']
-
-while 'continue' in data and (numberOfPages == 'max' or len(pages) < int(numberOfPages)):
-  if categoryOnly != -1:
-    params_all_pages['cmcontinue'] = data['continue']['cmcontinue']
-  else:
-    params_all_pages['apcontinue'] = data['continue']['apcontinue']
-
+# hack to make the request run the first time around
+continueParam = 'first-run'
+pages = []
+while not continueParam is None and (numberOfPages == 'max' or len(pages) < int(numberOfPages)):
   response = session.get(api_url, params=params_all_pages)
 
   data = response.json()
@@ -344,10 +327,22 @@ while 'continue' in data and (numberOfPages == 'max' or len(pages) < int(numberO
       print("and then call this script with parameters: myuser topsecret mytoken")
       exit(-1)
 
+  continueParam = None
   if categoryOnly != -1:
-    pages.extend(data['query']['categorymembers'])
+    morePages = data['query']['categorymembers']
+    if 'continue' in data:
+      continueParam = data['continue']['cmcontinue']
   else:
-    pages.extend(data['query']['allpages'])
+    morePages = data['query']['allpages']
+    if 'continue' in data:
+      continueParam = data['continue']['apcontinue']
+
+  if categoryOnly != -1:
+    params_all_pages['cmcontinue'] = continueParam
+  else:
+    params_all_pages['apcontinue'] = continueParam
+
+  pages.extend(morePages)
 
 for page in pages:
   if (pageOnly > -1) and (page['pageid'] != pageOnly):
