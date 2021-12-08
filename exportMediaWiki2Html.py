@@ -48,11 +48,11 @@ parser.add_argument('--enableIndex', help='Creates index file with a link to all
 parser.add_argument('--debug', help='Enables debug output',required=False, default=False)
 args = parser.parse_args()
 
-file_path = os.path.abspath(os.path.dirname(__file__)) + '/'
+script_path = os.path.abspath(os.path.dirname(__file__)) + '/'
 
 # load templates
-header = Path(file_path + 'templates/header.html').read_text()
-footer = Path(file_path + 'templates/footer.html').read_text()
+header = Path(script_path + 'templates/header.html').read_text()
+footer = Path(script_path + 'templates/footer.html').read_text()
 
 ###############
 # Handle arguments
@@ -63,7 +63,7 @@ if args.exportPath:
   if export_path[-1] != '/':
     export_path = export_path + '/'
 else:
-  export_path = file_path + 'export/'
+  export_path = script_path + 'export/'
 
 Path(export_path + "img/").mkdir(parents=True, exist_ok=True)
 
@@ -129,7 +129,11 @@ if args.page is not None:
 # Helper functions
 ###############
 
+downloadedPages = []
+pagesPerCategory = defaultdict(list)
+
 downloadedimages = []
+
 def DownloadImage(filename, urlimg):
   if not filename in downloadedimages:
     if debug:
@@ -137,22 +141,22 @@ def DownloadImage(filename, urlimg):
     if '/thumb/' in urlimg:
       urlimg = urlimg.replace('/thumb/', '/')
       urlimg = urlimg[:urlimg.rindex('/')]
-    response = S.get(url + urlimg)
+    response = session.get(url + urlimg)
     content = response.content
     f = open(export_path + "img/" + filename, "wb")
     f.write(content)
     f.close()
     downloadedimages.append(filename)
 
-downloadedPages = []
 def PageTitleToFilename(title):
     temp = re.sub('[^A-Za-z0-9\u0400-\u0500]+', '_', title)
     return temp.replace("(","_").replace(")","_").replace("__", "_")
 
-pagesPerCategory = defaultdict(list)
-
 # fetch page content from API
 def getPageContent(pageName):
+  _pageContent = None
+  _pageCategories = None
+
   params = {
     'action': 'parse',
     'prop': 'text|categories',
@@ -161,26 +165,31 @@ def getPageContent(pageName):
     'page': pageName
   }
 
-  response = S.get(api_url, params = params)
-
-  if debug:
-    pprint(response.json())
+  response = session.get(api_url, params = params)
 
   if not 'parse' in response.json():
     print("Error while fetching from api")
     pprint(response.json())
-    return None, None
+    return _pageContent, _pageCategories
+
+  if debug:
+    pprint(response.json())
 
   if 'text' in response.json()['parse']:
-    return (response.json()['parse']['text'], response.json()['parse']['categories'])
+    _pageContent = response.json()['parse']['text']
 
-  return None, None
+  if 'categories' in response.json()['parse']:
+    _pageCategories = response.json()['parse']['categories']
+
+  return _pageContent, _pageCategories
 
 # Downloads images, and replaces links with relative references
 def cleanupContent(content):
   pos = 0
 
   if removeEditLinks:
+    if debug:
+      print('Removing edit links')
     while '<span class="mw-editsection">' in content:
       pos = content.find('<span class="mw-editsection">')
       pos_end_bracket = content.find(']', pos)
@@ -188,12 +197,14 @@ def cleanupContent(content):
       content = content[:pos] + content[pos_end_edit:]
 
   if removeSrcset:
+    if debug:
+      print('Removing srcset attributes')
     content = re.sub('srcset=\"[a-zA-Z0-9:;-_\.\s\(\)\-\,\/%]*\"', '', content, flags=re.IGNORECASE)
 
   if fixShortUrl and 'href="/' in content:
+    if debug:
+      print('Replace shortUrls')
     content = content.replace('href="/', f'href="{url}index.php?title=')
-
-  #pprint(content)
 
   while f'{url}index.php?title=' in content:
       pos = content.find(f'{url}index.php?title=')
@@ -227,6 +238,7 @@ def cleanupContent(content):
           content = content.replace(imgpath, f'img/{downloadName}')
         else:
           print("Error: not an image? " + linkedpage)
+          # this is needed to avoid an infinite loop
           exit(-1)
 
       elif "&amp;action=edit&amp;redlink=1" in linkedpage:
@@ -248,7 +260,7 @@ def cleanupContent(content):
 # Here starts the logic
 ###############
 
-S = requests.Session()
+session = requests.Session()
 
 if args.username is not None and args.password is not None:
   if debug:
@@ -263,23 +275,23 @@ if args.username is not None and args.password is not None:
       'type':"login",
       'format':"json"
   }
-  R = S.get(url=api_url, params=params_login_token)
-  DATA = R.json()
-  LOGIN_TOKEN = DATA['query']['tokens']['logintoken']
+  response = session.get(url=api_url, params=params_login_token)
+  data = response.json()
+  login_token = data['query']['tokens']['logintoken']
 
   # Main-account login via "action=login" is deprecated and may stop working without warning. To continue login with "action=login", see [[Special:BotPasswords]]
   params_login = {
       'action':"login",
       'lgname':LgUser,
       'lgpassword':LgPassword,
-      'lgtoken':LOGIN_TOKEN,
+      'lgtoken':login_token,
       'format':"json"
   }
 
-  R = S.post(api_url, data=params_login)
-  DATA = R.json()
-  if "error" in DATA:
-    print(DATA)
+  response = session.post(api_url, data=params_login)
+  data = response.json()
+  if "error" in data:
+    print(data)
     exit(-1)
 
 if categoryOnly != -1:
@@ -298,7 +310,7 @@ else:
     'aplimit': numberOfPages
   }
 
-response = S.get(api_url, params=params_all_pages)
+response = session.get(api_url, params=params_all_pages)
 data = response.json()
 
 if "error" in data:
@@ -320,7 +332,7 @@ while 'continue' in data and (numberOfPages == 'max' or len(pages) < int(numberO
   else:
     params_all_pages['apcontinue'] = data['continue']['apcontinue']
 
-  response = S.get(api_url, params=params_all_pages)
+  response = session.get(api_url, params=params_all_pages)
 
   data = response.json()
 
@@ -340,7 +352,8 @@ while 'continue' in data and (numberOfPages == 'max' or len(pages) < int(numberO
 for page in pages:
   if (pageOnly > -1) and (page['pageid'] != pageOnly):
       continue
-  print(page)
+
+  print(f'Downloading "{page["title"]}" with id: {page["pageid"]}')
 
   content, categories = getPageContent(page['title'])
   if content is None:
@@ -426,7 +439,7 @@ for key in sorted(pagesPerCategory.keys()):
     f.write(footer.encode("utf8"))
     f.close()
 
-copy(file_path + 'templates/page-not-found.html', export_path + 'article_not_existing.html')
+copy(script_path + 'templates/page-not-found.html', export_path + 'article_not_existing.html')
 if not Path(export_path + 'css/').exists():
-  copytree(file_path + 'templates/css/', export_path + 'css/')
+  copytree(script_path + 'templates/css/', export_path + 'css/')
 
