@@ -152,6 +152,36 @@ def PageTitleToFilename(title):
 
 pagesPerCategory = defaultdict(list)
 
+def getPageContent(pageName):
+  url_api = f'{url}api.php'
+  params = {
+    'action': 'parse',
+    'prop': 'text|categories',
+    'formatversion': '2',
+    'format': 'json',
+    'page': pageName
+  }
+
+  response = S.get(url_api, params = params)
+
+  if debug:
+    pprint(response.json())
+
+  if not 'parse' in response.json():
+    print("Error while fetching from api")
+    pprint(response.json())
+    return None, None
+
+  if 'text' in response.json()['parse']:
+    return (response.json()['parse']['text'], response.json()['parse']['categories'])
+
+  return None, None
+
+def sanitizeContent(content):
+
+  return content
+
+
 ###############
 # Here starts the logic
 ###############
@@ -214,22 +244,10 @@ for page in pages:
     if (pageOnly > -1) and (page['pageid'] != pageOnly):
         continue
     print(page)
-    quoted_pagename = quote_title(page['title'])
-    url_page = f'{url}api.php?action=parse&prop=text|categories&formatversion=2&format=json&page={quoted_pagename}'
-    response = S.get(url_page)
 
-    if debug:
-      pprint(response.json())
-
-    if not 'parse' in response.json():
-      print("Error while fetching from api")
-      pprint(response.json())
-      continue
-
-    if 'text' in response.json()['parse']:
-      content = response.json()['parse']['text']
-    else:
-      content = "<p>No content on this page</p>"
+    content, categories = getPageContent(page['title'])
+    if content is None:
+      content = '<p>No content on this page</p>'
 
     pos = 0
 
@@ -287,7 +305,6 @@ for page in pages:
         else:
           linkedpage = PageTitleToFilename(linkedpage)
           content = content[:pos] + linkedpage + ".html" + content[posendquote:]
-
     content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
     pageFilename = PageTitleToFilename(page['title']) + '.html'
@@ -300,8 +317,8 @@ for page in pages:
       f.close()
 
     downloadedPages.append((pageFilename, page['title']))
-    if 'categories' in response.json()['parse']:
-      for categoryItem in response.json()['parse']['categories']:
+    if isinstance(categories, list):
+      for categoryItem in categories:
         category = categoryItem.get('category')
         if debug:
           pprint(category)
@@ -330,9 +347,19 @@ if enableIndex:
     f.close()
 
 for key in sorted(pagesPerCategory.keys()):
+  print(f'Creating category page for: {key}')
   pageName = PageTitleToFilename(f'Kategorie:{key}') + '.html'
   with open(export_path + pageName, "wb") as f:
     f.write(header.replace('#TITLE#', key).encode("utf8"))
+
+    content, *_ = getPageContent(f'Kategorie:{key}')
+    if content is None:
+      content = '<p>No content on this page</p>'
+    content = sanitizeContent(content)
+
+    if enableIndex:
+      f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
+    f.write(content.encode('utf8'))
 
     f.write('<ul>\n'.encode('utf8'))
     for (filename, pageTitle) in pagesPerCategory[key]:
