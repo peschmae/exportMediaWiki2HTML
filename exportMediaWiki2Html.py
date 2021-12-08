@@ -116,6 +116,8 @@ url = args.url
 if not url.endswith('/'):
   url = url + '/'
 
+api_url = f'{url}api.php'
+
 pageOnly = -1
 categoryOnly = -1
 if args.category is not None:
@@ -153,7 +155,6 @@ def PageTitleToFilename(title):
 pagesPerCategory = defaultdict(list)
 
 def getPageContent(pageName):
-  url_api = f'{url}api.php'
   params = {
     'action': 'parse',
     'prop': 'text|categories',
@@ -162,7 +163,7 @@ def getPageContent(pageName):
     'page': pageName
   }
 
-  response = S.get(url_api, params = params)
+  response = S.get(api_url, params = params)
 
   if debug:
     pprint(response.json())
@@ -255,18 +256,18 @@ if args.username is not None and args.password is not None:
   LgPassword = args.password
 
   # Retrieve login token first
-  PARAMS_0 = {
+  params_login_token = {
       'action':"query",
       'meta':"tokens",
       'type':"login",
       'format':"json"
   }
-  R = S.get(url=f'{url}api.php', params=PARAMS_0)
+  R = S.get(url=api_url, params=params_login_token)
   DATA = R.json()
   LOGIN_TOKEN = DATA['query']['tokens']['logintoken']
 
   # Main-account login via "action=login" is deprecated and may stop working without warning. To continue login with "action=login", see [[Special:BotPasswords]]
-  PARAMS_1 = {
+  params_login = {
       'action':"login",
       'lgname':LgUser,
       'lgpassword':LgPassword,
@@ -274,17 +275,29 @@ if args.username is not None and args.password is not None:
       'format':"json"
   }
 
-  R = S.post(f'{url}api.php', data=PARAMS_1)
+  R = S.post(api_url, data=params_login)
   DATA = R.json()
   if "error" in DATA:
     print(DATA)
     exit(-1)
 
 if categoryOnly != -1:
-  url_allpages = f'{url}api.php?action=query&list=categorymembers&format=json&cmpageid={categoryOnly}&cmlimit={numberOfPages}'
+  params_all_pages = {
+    'action': 'query',
+    'list': 'categorymembers',
+    'format': 'json',
+    'cmpageid': categoryOnly,
+    'cmlimit': numberOfPages
+  }
 else:
-  url_allpages = f'{url}api.php?action=query&list=allpages&format=json&aplimit={numberOfPages}'
-response = S.get(url_allpages)
+  params_all_pages = {
+    'action': 'query',
+    'list': 'allpages',
+    'format': 'json',
+    'aplimit': numberOfPages
+  }
+
+response = S.get(api_url, params=params_all_pages)
 data = response.json()
 
 if "error" in data:
