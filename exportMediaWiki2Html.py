@@ -329,6 +329,19 @@ if enableIndex:
     f.write(footer.encode("utf8"))
     f.close()
 
+for key in sorted(pagesPerCategory.keys()):
+  pageName = PageTitleToFilename(f'Kategorie:{key}') + '.html'
+  with open(export_path + pageName, "wb") as f:
+    f.write(header.replace('#TITLE#', key).encode("utf8"))
+
+    f.write('<ul>\n'.encode('utf8'))
+    for (filename, pageTitle) in pagesPerCategory[key]:
+      f.write(f'<li><a href="{filename}">{pageTitle}</a></li>\n'.encode('utf8'))
+    f.write('</ul>'.encode('utf8'))
+
+    f.write(footer.encode("utf8"))
+    f.close()
+
 copy(file_path + 'templates/page-not-found.html', export_path + 'article_not_existing.html')
 if not Path(export_path + 'css/').exists():
   copytree(file_path + 'templates/css/', export_path + 'css/')
