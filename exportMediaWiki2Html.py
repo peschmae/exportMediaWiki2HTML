@@ -193,6 +193,8 @@ def cleanupContent(content):
   if fixShortUrl and 'href="/' in content:
     content = content.replace('href="/', f'href="{url}index.php?title=')
 
+  #pprint(content)
+
   while f'{url}index.php?title=' in content:
       pos = content.find(f'{url}index.php?title=')
       posendquote = content.find('"', pos)
@@ -234,8 +236,9 @@ def cleanupContent(content):
         linkWithoutAnchor = PageTitleToFilename(linkWithoutAnchor)
         content = content[:pos] + linkWithoutAnchor + ".html#" + linkedpage[linkedpage.find('#')+1:] + content[posendquote:]
       else:
-        linkedpage = PageTitleToFilename(linkedpage)
+        linkedpage = PageTitleToFilename(parse.unquote(linkedpage))
         content = content[:pos] + linkedpage + ".html" + content[posendquote:]
+
   content = re.sub("(<!--).*?(-->)", '', content, flags=re.DOTALL)
 
   return content
