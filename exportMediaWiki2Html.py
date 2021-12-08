@@ -129,9 +129,6 @@ if args.page is not None:
 # Helper functions
 ###############
 
-def quote_title(title):
-  return parse.quote(page['title'].replace(' ', '_'))
-
 downloadedimages = []
 def DownloadImage(filename, urlimg):
   if not filename in downloadedimages:
@@ -154,6 +151,7 @@ def PageTitleToFilename(title):
 
 pagesPerCategory = defaultdict(list)
 
+# fetch page content from API
 def getPageContent(pageName):
   params = {
     'action': 'parse',
@@ -178,7 +176,7 @@ def getPageContent(pageName):
 
   return None, None
 
-# Downloads images, and replaces links with internal references
+# Downloads images, and replaces links with relative references
 def cleanupContent(content):
   pos = 0
 
@@ -331,6 +329,7 @@ for page in pages:
       f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
     f.write(content.encode('utf8'))
 
+    # Add category page links to bottom
     if isinstance(categories, list):
       f.write('<nav><ul>'.encode("utf8"))
       for categoryItem in categories:
@@ -351,6 +350,9 @@ for page in pages:
 
       pagesPerCategory[category].append((pageFilename, page['title']))
 
+###############
+# Create index page
+###############
 if enableIndex:
   # Write index file for easier overview
   with open(export_path + "index.html", "wb") as f:
@@ -372,6 +374,9 @@ if enableIndex:
     f.write(footer.encode("utf8"))
     f.close()
 
+###############
+# Create category pages
+###############
 for key in sorted(pagesPerCategory.keys()):
   print(f'Creating category page for: {key}')
   pageName = PageTitleToFilename(f'Kategorie:{key}') + '.html'
