@@ -330,6 +330,15 @@ for page in pages:
     if enableIndex:
       f.write('<a href="./index.html">Back to index</a>\n'.encode("utf8"))
     f.write(content.encode('utf8'))
+
+    if isinstance(categories, list):
+      f.write('<nav><ul>'.encode("utf8"))
+      for categoryItem in categories:
+        category = categoryItem['category']
+        categoryPageName = PageTitleToFilename(f'Kategorie:{category}') + '.html'
+        f.write(f'<li><a href="{categoryPageName}">{category}</a></li>\n'.encode('utf8'))
+      f.write('</ul></nav>'.encode("utf8"))
+
     f.write(footer.encode("utf8"))
     f.close()
 
