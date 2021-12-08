@@ -314,6 +314,29 @@ if categoryOnly != -1:
 else:
   pages = data['query']['allpages']
 
+while 'continue' in data and (numberOfPages == 'max' or len(pages) < int(numberOfPages)):
+  if categoryOnly != -1:
+    params_all_pages['cmcontinue'] = data['continue']['cmcontinue']
+  else:
+    params_all_pages['apcontinue'] = data['continue']['apcontinue']
+
+  response = S.get(api_url, params=params_all_pages)
+
+  data = response.json()
+
+  if "error" in data:
+    pprint(data)
+    if data['error']['code'] == "readapidenied":
+      print()
+      print(f'get login token here: {url}/api.php?action=query&meta=tokens&type=login')
+      print("and then call this script with parameters: myuser topsecret mytoken")
+      exit(-1)
+
+  if categoryOnly != -1:
+    pages.extend(data['query']['categorymembers'])
+  else:
+    pages.extend(data['query']['allpages'])
+
 for page in pages:
   if (pageOnly > -1) and (page['pageid'] != pageOnly):
       continue
