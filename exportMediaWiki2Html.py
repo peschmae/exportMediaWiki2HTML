@@ -14,6 +14,7 @@ from pathlib import Path
 from shutil import copy, copytree
 from pprint import pprint
 from collections import defaultdict
+from datetime import datetime
 import argparse
 
 description = """
@@ -392,6 +393,8 @@ if enableIndex:
   with open(export_path + "index.html", "wb") as f:
     f.write(header.replace('#TITLE#', 'Index').encode("utf8"))
 
+    f.write(f'Last updated: {datetime.now()}')
+
     for key in sorted(pagesPerCategory.keys()):
       f.write(f'<details>\n<summary>{key}</summary>\n<ul>\n'.encode('utf8'))
       for (filename, pageTitle) in pagesPerCategory[key]:
@@ -437,4 +440,3 @@ for key in sorted(pagesPerCategory.keys()):
 copy(script_path + 'templates/page-not-found.html', export_path + 'article_not_existing.html')
 if not Path(export_path + 'css/').exists():
   copytree(script_path + 'templates/css/', export_path + 'css/')
-
